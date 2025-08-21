@@ -22,6 +22,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   int _categoryCount = 0;
   int _sheikhCount = 0;
   int _studentCount = 0;
+  int _taskCount = 0;
 
   @override
   void initState() {
@@ -33,13 +34,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
     try {
       final categories = await _dbService.getCategories();
       final sheikhs = await _dbService.getSheikhs();
-      final students = await _dbService.getTasks();
+      final students = await _dbService.getAllStudents();
+      final tasks = await _dbService.getTasks();
 
       if (mounted) {
         setState(() {
           _categoryCount = categories.length;
           _sheikhCount = sheikhs.length;
           _studentCount = students.length;
+          _taskCount = tasks.length;
           _isLoading = false;
         });
       }
@@ -168,7 +171,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       _buildDashboardItem(
                         title: 'Tasks',
                         icon: Icons.task,
-                        count: 0,
+                        count: _taskCount,
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(

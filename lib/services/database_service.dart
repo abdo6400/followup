@@ -68,6 +68,10 @@ class DatabaseService {
   }
 
   // Students
+  Future<List<StudentModel>> getAllStudents() async {
+    final snapshot = await _db.collection('students').get();
+    return snapshot.docs.map((doc) => StudentModel.fromFirestore(doc)).toList();
+  }
   Future<List<StudentModel>> getStudentsByParent(String parentId) async {
     final snapshot = await _db
         .collection('students')

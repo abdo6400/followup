@@ -128,7 +128,6 @@ class _SheikhDashboardState extends State<SheikhDashboard> {
 
       final today = DateTime.now();
       final weekday = today.weekday; // 1 = Monday, 7 = Sunday
-      
       return sheikhData.workingDays.contains(weekday);
     } catch (e) {
       print('Error checking working day: $e');

@@ -22,13 +22,13 @@ class _SheikhManagementScreenState extends State<SheikhManagementScreen> {
   List<String> _categories = [];
   List<String> _selectedCategories = [];
   final _workingDays = <String>[
-    'Sunday',
     'Monday',
     'Tuesday',
     'Wednesday',
     'Thursday',
     'Friday',
     'Saturday',
+    'Sunday',
   ];
   final _selectedWorkingDays = <String>{};
 

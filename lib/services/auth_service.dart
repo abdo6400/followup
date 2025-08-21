@@ -200,11 +200,25 @@ class AuthService {
           .set(userModel.toMap());
 
       // Create sheikh profile
+      final Map<String, int> nameToWeekday = {
+        'Monday': 1,
+        'Tuesday': 2,
+        'Wednesday': 3,
+        'Thursday': 4,
+        'Friday': 5,
+        'Saturday': 6,
+        'Sunday': 7,
+      };
+      final normalizedWorkingDays = workingDays
+          .map((d) => nameToWeekday[d] ?? 0)
+          .where((v) => v > 0)
+          .toList();
+
       final sheikhModel = SheikhModel(
         id: '', // Will be set by Firestore
         userId: userCredential.user!.uid,
         assignedCategories: assignedCategories,
-        workingDays: workingDays,
+        workingDays: normalizedWorkingDays,
         name: name,
       );
 
