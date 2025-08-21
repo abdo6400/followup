@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "765093004750",
+    "project_id": "followup-d50cf",
+    "storage_bucket": "followup-d50cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:765093004750:android:0504a27cfd18efcf51979f",
+        "android_client_info": {
+          "package_name": "com.ama.followup"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBM0H6Jukxwh6z7esI4Pc_u1H8X9c8V9yY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
