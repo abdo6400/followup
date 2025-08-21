@@ -312,7 +312,7 @@ class _SheikhManagementScreenState extends State<SheikhManagementScreen> {
                                 Wrap(
                                   spacing: 8,
                                   children: sheikh.workingDays
-                                      .map((d) => Chip(label: Text(d)))
+                                      .map((d) => Chip(label: Text(d.toString())))
                                       .toList(),
                                 ),
                                 const SizedBox(height: 16),
