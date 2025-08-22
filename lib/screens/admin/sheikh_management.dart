@@ -1,379 +1,360 @@
 import 'package:flutter/material.dart';
-import '../../models/sheikh_model.dart';
-import '../../services/auth_service.dart';
-import '../../services/database_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../models/sheikh_model.dart';
+import '../../../providers/sheikh_provider.dart';
 
-class SheikhManagementScreen extends StatefulWidget {
+
+// Simple validation helper
+class Validators {
+  static String? required(String? value, String message) {
+    if (value == null || value.isEmpty) {
+      return message;
+    }
+    return null;
+  }
+
+  static String? minLength(String? value, int length, String message) {
+    if (value != null && value.length < length) {
+      return message;
+    }
+    return null;
+  }
+
+  static String? email(String? value, String message) {
+    if (value == null || value.isEmpty) return message;
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(value)) {
+      return message;
+    }
+    return null;
+  }
+}
+
+// Working days list
+final List<String> workingDays = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+class SheikhManagementScreen extends ConsumerWidget {
   const SheikhManagementScreen({Key? key}) : super(key: key);
 
   @override
-  State<SheikhManagementScreen> createState() => _SheikhManagementScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      body: const _SheikhList(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddEditDialog(context, ref),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
 }
 
-class _SheikhManagementScreenState extends State<SheikhManagementScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _authService = AuthService();
-  final _dbService = DatabaseService();
-  bool _isLoading = true;
-  List<SheikhModel> _sheikhs = [];
-  List<String> _categories = [];
-  List<String> _selectedCategories = [];
-  final _workingDays = <String>[
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-  ];
-  final _selectedWorkingDays = <String>{};
+class _SheikhList extends ConsumerWidget {
+  const _SheikhList();
 
   @override
-  void initState() {
-    super.initState();
-    _loadData();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sheikhsAsync = ref.watch(sheikhProvider);
+
+    return sheikhsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 60),
+            const SizedBox(height: 16),
+            Text('Error: ${error.toString()}'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => ref.refresh(sheikhProvider),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+      data: (sheikhs) => sheikhs.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('No sheikhs found'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => _showAddEditDialog(context, ref),
+                    child: const Text('Add Sheikh'),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              itemCount: sheikhs.length,
+              itemBuilder: (context, index) {
+                final sheikh = sheikhs[index];
+                return _SheikhItem(sheikh: sheikh);
+              },
+            ),
+    );
   }
+}
 
-  Future<void> _loadData() async {
-    try {
-      final sheikhs = await _dbService.getSheikhs();
-      final categories = await _dbService.getCategories();
+class _SheikhItem extends ConsumerWidget {
+  final SheikhModel sheikh;
 
-      if (mounted) {
-        setState(() {
-          _sheikhs = sheikhs;
-          _categories = categories.map((c) => c.name).toList();
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print('Error loading data: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e')),
-        );
-      }
-    }
-  }
+  const _SheikhItem({required this.sheikh});
 
-  void _showAddSheikhDialog() {
-    _nameController.clear();
-    _emailController.clear();
-    _passwordController.clear();
-    _selectedCategories.clear();
-    _selectedWorkingDays.clear();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Sheikh'),
-        content: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ExpansionTile(
+        title: Text(sheikh.name),
+        subtitle: Text('Categories: ${sheikh.assignedCategories.join(", ")}'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a name';
-                    }
-                    return null;
-                  },
-                ),
+                const Text('Working Days:', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(sheikh.workingDays.map((day) => workingDays[day - 1]).join(', ')),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter an email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                  ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text('Categories:'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: _categories.map((category) {
-                    return FilterChip(
-                      label: Text(category),
-                      selected: _selectedCategories.contains(category),
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.add(category);
-                          } else {
-                            _selectedCategories.remove(category);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                const Text('Working Days:'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: _workingDays.map((day) {
-                    return FilterChip(
-                      label: Text(day),
-                      selected: _selectedWorkingDays.contains(day),
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedWorkingDays.add(day);
-                          } else {
-                            _selectedWorkingDays.remove(day);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit'),
+                      onPressed: () => _showAddEditDialog(context, ref, sheikh),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Delete'),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      onPressed: () => _confirmDelete(context, ref, sheikh),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_formKey.currentState!.validate()) {
-                if (_selectedCategories.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please select at least one category'),
-                    ),
-                  );
-                  return;
-                }
-                if (_selectedWorkingDays.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please select working days'),
-                    ),
-                  );
-                  return;
-                }
-                await _addSheikh();
-              }
-            },
-            child: const Text('Add'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _addSheikh() async {
-    try {
-      final userModel = await _authService.createSheikhAccount(
-        _emailController.text,
-        _passwordController.text,
-        _nameController.text,
-        _selectedCategories,
-        _selectedWorkingDays.toList(),
-      );
-
-      if (userModel != null && mounted) {
-        Navigator.pop(context);
-        await _loadData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sheikh added successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding sheikh: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _deleteSheikh(SheikhModel sheikh) async {
-    try {
-      await _dbService.deleteSheikh(sheikh.id);
-      if (mounted) {
-        await _loadData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sheikh deleted successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting sheikh: $e')),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sheikh Management'),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _sheikhs.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('No sheikhs found'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _showAddSheikhDialog,
-                        child: const Text('Add Sheikh'),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: _sheikhs.length,
-                  itemBuilder: (context, index) {
-                    final sheikh = _sheikhs[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: ExpansionTile(
-                        title: Text(sheikh.name),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Categories:',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 8,
-                                  children: sheikh.assignedCategories
-                                      .map((c) => Chip(label: Text(c)))
-                                      .toList(),
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Working Days:',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 8,
-                                  children: sheikh.workingDays
-                                      .map((d) => Chip(label: Text(d.toString())))
-                                      .toList(),
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    TextButton.icon(
-                                      onPressed: () => showDialog(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          title: const Text('Delete Sheikh'),
-                                          content: Text(
-                                            'Are you sure you want to delete this sheikh?',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context),
-                                              child: const Text('Cancel'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () {
-                                                Navigator.pop(context);
-                                                _deleteSheikh(sheikh);
-                                              },
-                                              style: TextButton.styleFrom(
-                                                foregroundColor: Colors.red,
-                                              ),
-                                              child: const Text('Delete'),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      icon: const Icon(Icons.delete),
-                                      label: const Text('Delete'),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.red,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddSheikhDialog,
-        child: const Icon(Icons.add),
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, SheikhModel sheikh) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Sheikh'),
+        content: Text('Are you sure you want to delete ${sheikh.name}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
+
+    if (confirmed == true) {
+      try {
+        await ref.read(sheikhProvider.notifier).deleteSheikh(sheikh);
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Sheikh deleted successfully')));
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error deleting sheikh: $e')));
+        }
+      }
+    }
+  }
+}
+
+Future<void> _showAddEditDialog(BuildContext context, WidgetRef ref, [SheikhModel? sheikh]) async {
+  final nameController = TextEditingController(text: sheikh?.name ?? '');
+  final passwordController = TextEditingController();
+  final formKey = GlobalKey<FormState>();
+
+  // Initialize selected values
+  final selectedCategories = <String>[...sheikh?.assignedCategories ?? []];
+  final selectedWorkingDays = <String>{
+    for (final day in sheikh?.workingDays ?? []) workingDays[day - 1],
+  };
+
+  // Form validation
+  String? validateName(String? value) {
+    return Validators.required(value, 'Name is required') ??
+        Validators.minLength(value, 3, 'Name must be at least 3 characters');
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  String? validatePassword(String? value) {
+    if (sheikh != null && (value == null || value.isEmpty)) {
+      return null; // Password is optional for editing
+    }
+    return Validators.required(value, 'Password is required') ??
+        Validators.minLength(value, 6, 'Password must be at least 6 characters');
+  }
+
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text(sheikh == null ? 'Add Sheikh' : 'Edit Sheikh'),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: validateName,
+                ),
+                const SizedBox(height: 16),
+
+                if (sheikh == null) ...[
+                  // Only show password for new sheikhs
+                  TextFormField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      border: OutlineInputBorder(),
+                    ),
+                    obscureText: true,
+                    validator: validatePassword,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                const Text('Categories', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                // TODO: Add category selection
+                const Text('Working Days', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: workingDays
+                      .map(
+                        (day) => FilterChip(
+                          label: Text(day),
+                          selected: selectedWorkingDays.contains(day),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                selectedWorkingDays.add(day);
+                              } else {
+                                selectedWorkingDays.remove(day);
+                              }
+                            });
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() == true) {
+                if (selectedWorkingDays.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select at least one working day')),
+                  );
+                  return;
+                }
+                Navigator.pop(context, true);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  if (result == true) {
+    try {
+      // Convert working days from names to numbers (1-7)
+      final workingDayNumbers = selectedWorkingDays
+          .map((day) => workingDays.indexOf(day) + 1)
+          .toSet();
+
+      try {
+        if (sheikh == null) {
+          // Add new sheikh
+          await ref
+              .read(sheikhProvider.notifier)
+              .addSheikh(
+                name: nameController.text.trim(),
+                email:
+                    '${nameController.text.trim().toLowerCase().replaceAll(' ', '.')}@example.com',
+                password: passwordController.text,
+                categories: selectedCategories,
+                workingDays: selectedWorkingDays,
+              );
+        } else {
+          // Update existing sheikh - create a new instance with updated values
+          final updatedSheikh = SheikhModel(
+            id: sheikh.id,
+            userId: sheikh.userId,
+            name: nameController.text.trim(),
+            assignedCategories: selectedCategories,
+            workingDays: workingDayNumbers.toList(),
+          );
+          await ref.read(sheikhProvider.notifier).updateSheikh(updatedSheikh);
+        }
+      } on FirebaseException catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Firebase Error: ${e.message}')));
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('An unexpected error occurred')));
+        }
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sheikh ${sheikh == null ? 'added' : 'updated'} successfully')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      }
+    }
   }
 }

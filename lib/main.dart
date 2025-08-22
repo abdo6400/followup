@@ -1,96 +1,94 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:followup/screens/auth/login_screen.dart';
+import 'package:followup/providers/language_provider.dart';
+import 'package:followup/providers/auth_provider.dart';
+import 'package:followup/models/user_model.dart';
+import 'package:followup/screens/admin/admin_dashboard_screen.dart';
+import 'package:followup/services/auth_service.dart';
 import 'firebase_options.dart';
-import 'models/user_model.dart';
-import 'providers/theme_provider.dart';
-import 'providers/language_provider.dart';
-import 'screens/auth/login_screen.dart';
-import 'services/auth_service.dart';
-import 'services/notification_service.dart';
-import 'screens/auth/register_screen.dart';
-import 'screens/auth/forgot_password_screen.dart';
-import 'screens/admin/admin_dashboard.dart';
-import 'screens/sheikh/sheikh_dashboard.dart';
 import 'screens/parent/parent_dashboard.dart';
+import 'screens/sheikh/sheikh_dashboard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-);
-  
-  // Initialize the admin account
+
+  // Initialize Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize admin user
   await AuthService().initializeAdmin();
-  // Initialize notifications
-  await NotificationService().initialize();
-  
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => LanguageProvider()),
-      ],
-      child: const MyApp(),
-    ),
-  );
+
+  runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final languageProvider = Provider.of<LanguageProvider>(context);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ThemeData.light();
+    final locale = ref.watch(languageProvider);
 
     return MaterialApp(
       title: 'Student Follow-up',
-      theme: themeProvider.lightTheme,
-      darkTheme: themeProvider.darkTheme,
-      themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      locale: languageProvider.locale,
-      routes: {
-        '/login': (_) => const LoginScreen(),
-        '/register': (_) => const RegisterScreen(),
-        '/forgot-password': (_) => const ForgotPasswordScreen(),
-      },
+      debugShowCheckedModeBanner: false,
+      theme: theme,
+      locale: locale,
       home: const RootRouter(),
+      // Add named routes
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/admin/dashboard': (context) => const AdminDashboardScreen(),
+        '/sheikh/dashboard': (context) => const SheikhDashboard(),
+        '/parent/dashboard': (context) => const ParentDashboard(),
+        // Add other routes here
+      },
+      onGenerateRoute: (settings) {
+        // Handle dynamic routes or show error page
+        return MaterialPageRoute(
+          builder: (context) =>
+              Scaffold(body: Center(child: Text('No route defined for ${settings.name}'))),
+        );
+      },
     );
   }
 }
 
-class RootRouter extends StatelessWidget {
+class RootRouter extends ConsumerWidget {
   const RootRouter({super.key});
 
-  Future<Widget> _resolveStartScreen() async {
-    final auth = AuthService();
-    final currentUser = await auth.getCurrentUser();
-    if (currentUser == null) {
-      return const LoginScreen();
-    }
-    switch (currentUser.role) {
-      case UserRole.admin:
-        return const AdminDashboard();
-      case UserRole.sheikh:
-        return const SheikhDashboard();
-      case UserRole.parent:
-        return const ParentDashboard();
-    }
-  }
-
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<Widget>(
-      future: _resolveStartScreen(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authControllerProvider);
+
+    return authState.when(
+      data: (user) {
+        if (user == null) {
+          return const LoginScreen();
         }
-        return snapshot.data!;
+
+        // Navigate based on user role
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          switch (user.role) {
+            case UserRole.admin:
+              Navigator.of(context).pushNamedAndRemoveUntil('/admin/dashboard', (route) => false);
+              break;
+            case UserRole.sheikh:
+              Navigator.of(context).pushNamedAndRemoveUntil('/sheikh/dashboard', (route) => false);
+              break;
+            case UserRole.parent:
+              Navigator.of(context).pushNamedAndRemoveUntil('/parent/dashboard', (route) => false);
+              break;
+          }
+        });
+
+        // Show loading while navigating
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
       },
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (error, stack) => Scaffold(body: Center(child: Text('Error: $error'))),
     );
   }
 }

@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
+import '../../providers/auto_backup_provider.dart';
 
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+class SettingsScreen extends ConsumerStatefulWidget {
+  const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _showNotifications = true;
 
   @override
@@ -22,9 +23,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _showNotifications = prefs.getBool('showNotifications') ?? true;
-    });
+    if (mounted) {
+      setState(() {
+        _showNotifications = prefs.getBool('showNotifications') ?? true;
+      });
+    }
   }
 
   Future<void> _saveSetting(String key, dynamic value) async {
@@ -38,29 +41,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final languageProvider = Provider.of<LanguageProvider>(context);
+    final themeNotifier = ref.read(themeProvider.notifier);
+    final themeMode = ref.watch(themeProvider);
+    final t = ref.watch(translationProvider);
+    final autoBackupNotifier = ref.read(autoBackupProvider.notifier);
+    final isAutoBackupEnabled = ref.watch(autoBackupProvider);
+    final currentLocale = ref.watch(languageProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(languageProvider.translate('settings'))),
+      appBar: AppBar(title: Text(t('settings'))),
       body: ListView(
         children: [
           ListTile(
             leading: const Icon(Icons.dark_mode),
-            title: Text(languageProvider.translate('darkMode')),
-            subtitle: Text(languageProvider.translate('enableDarkTheme')),
+            title: Text(t('darkMode')),
+            subtitle: Text(t('enableDarkTheme')),
             trailing: Switch(
-              value: themeProvider.isDarkMode,
+              value: themeMode == ThemeMode.dark,
               onChanged: (bool value) async {
-                await themeProvider.toggleTheme();
+                await themeNotifier.toggleTheme();
               },
             ),
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.notifications),
-            title: Text(languageProvider.translate('notifications')),
-            subtitle: Text(languageProvider.translate('enableNotifications')),
+            title: Text(t('notifications')),
+            subtitle: Text(t('enableNotifications')),
             trailing: Switch(
               value: _showNotifications,
               onChanged: (bool value) async {
@@ -73,45 +80,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.language),
-            title: Text(languageProvider.translate('language')),
+            title: Text(t('language')),
             subtitle: Text(
-              _getLanguageName(languageProvider.locale.languageCode),
+              _getLanguageName(currentLocale.languageCode),
             ),
-            onTap: () => _showLanguageDialog(languageProvider),
+            onTap: () => _showLanguageDialog(),
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.backup),
-            title: Text(languageProvider.translate('autoBackup')),
-            subtitle: Text(languageProvider.translate('enableAutoBackup')),
+            title: Text(t('autoBackup')),
+            subtitle: Text(t('enableAutoBackup')),
             trailing: Switch(
-              value: false, // TODO: Implement backup functionality
+              value: isAutoBackupEnabled,
               onChanged: (bool value) async {
-                await _saveSetting('autoBackup', value);
-                setState(() {});
-                // TODO: Implement auto backup
+                await autoBackupNotifier.toggleAutoBackup();
               },
             ),
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.restore),
-            title: Text(languageProvider.translate('restoreData')),
-            subtitle: Text(languageProvider.translate('restoreFromBackup')),
+            title: Text(t('restoreData')),
+            subtitle: Text(t('restoreFromBackup')),
             onTap: () {
-              // TODO: Implement data restore
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(languageProvider.translate('comingSoon')),
-                ),
+                SnackBar(content: Text(t('comingSoon'))),
               );
             },
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.info),
-            title: Text(languageProvider.translate('about')),
-            onTap: () => _showAboutDialog(languageProvider),
+            title: Text(t('about')),
+            onTap: () => _showAboutDialog(),
           ),
         ],
       ),
@@ -129,20 +131,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _showLanguageDialog(LanguageProvider languageProvider) async {
+  Future<void> _showLanguageDialog() async {
+    final t = ref.read(translationProvider);
     final String? result = await showDialog<String>(
       context: context,
       builder: (BuildContext context) {
         return SimpleDialog(
-          title: Text(languageProvider.translate('selectLanguage')),
+          title: Text(t('selectLanguage')),
           children: <Widget>[
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, 'en'),
-              child: Text(languageProvider.translate('english')),
+              child: Text(t('english')),
             ),
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, 'ar'),
-              child: Text(languageProvider.translate('arabic')),
+              child: Text(t('arabic')),
             ),
           ],
         );
@@ -150,37 +153,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (result != null) {
-      await languageProvider.setLocale(result);
+      await ref.read(languageProvider.notifier).setLocale(result);
     }
   }
 
-  void _showAboutDialog(LanguageProvider languageProvider) {
+  void _showAboutDialog() {
+    final t = ref.read(translationProvider);
     showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(languageProvider.translate('about')),
+          title: Text(t('about')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                languageProvider.translate('appName'),
+                t('appName'),
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
-              Text(languageProvider.translate('version') + ': 1.0.0'),
+              Text('${t('version')}: 1.0.0'),
               const SizedBox(height: 8),
-              Text(languageProvider.translate('appDescription')),
+              Text(t('appDescription')),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(languageProvider.translate('close')),
+              child: Text(t('close')),
             ),
           ],
         );

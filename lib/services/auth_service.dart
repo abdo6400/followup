@@ -1,13 +1,30 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../models/sheikh_model.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _adminEmail = 'admin@followup.com'; // You can change this
-  final String _adminPassword = 'admin123456'; // You can change this
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _firestore;
+  final String _adminEmail = 'admin@followup.com';
+  final String _adminPassword = 'admin123456';
+
+  AuthService({
+    FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+  })  : _auth = auth ?? FirebaseAuth.instance,
+        _firestore = firestore ?? FirebaseFirestore.instance;
+
+  // Stream of user changes
+  Stream<UserModel?> get userChanges {
+    return _auth.authStateChanges().asyncMap((user) async {
+      if (user == null) return null;
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      if (!doc.exists) return null;
+      return UserModel.fromFirestore(doc);
+    });
+  }
 
   // Initialize admin account
   Future<void> initializeAdmin() async {
@@ -48,6 +65,7 @@ class AuthService {
     if (user != null) {
       try {
         final doc = await _firestore.collection('users').doc(user.uid).get();
+        if (!doc.exists) return null;
         if (doc.exists) {
           return UserModel.fromFirestore(doc);
         }
@@ -89,41 +107,32 @@ class AuthService {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
-      // Clear any cached user data here if needed
     } catch (e) {
-      print('Error signing out: $e');
-      throw 'An error occurred while signing out.';
+      debugPrint('Sign out error: $e');
+      rethrow;
     }
   }
 
-  Future<UserModel?> signInWithEmailAndPassword(
-    String email,
-    String password,
-  ) async {
+  Future<UserModel> signInWithEmailAndPassword(String email, String password) async {
     try {
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      if (userCredential.user != null) {
-        final doc = await _firestore
-            .collection('users')
-            .doc(userCredential.user!.uid)
-            .get();
-        return UserModel.fromFirestore(doc);
+      final doc = await _firestore.collection('users').doc(userCredential.user!.uid).get();
+      if (!doc.exists) {
+        throw Exception('User data not found');
       }
+      
+      return UserModel.fromFirestore(doc);
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        throw 'No user found for that email.';
-      } else if (e.code == 'wrong-password') {
-        throw 'Wrong password provided.';
-      }
+      debugPrint('Firebase Auth Error: ${e.message}');
+      rethrow;
     } catch (e) {
-      print('Sign in error: $e');
-      throw 'An error occurred while signing in.';
+      debugPrint('Sign in error: $e');
+      rethrow;
     }
-    return null;
   }
 
   Future<UserModel?> registerParent(
@@ -234,9 +243,35 @@ class AuthService {
   Future<void> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Password reset error: ${e.message}');
+      rethrow;
+    }
+  }
+
+  // User management
+  Future<UserCredential> createUserWithEmailAndPassword(String email, String password) async {
+    return await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  Future<void> deleteUser(String userId) async {
+    try {
+      // Delete from Firestore first
+      await _firestore.collection('users').doc(userId).delete();
+      
+      // Get current user
+      final user = _auth.currentUser;
+      
+      // If the user to delete is the current user, delete from Firebase Auth
+      if (user != null && user.uid == userId) {
+        await user.delete();
+      }
     } catch (e) {
-      print('Password reset error: $e');
-      throw 'An error occurred while sending the password reset email.';
+      print('Error deleting user: $e');
+      throw 'An error occurred while deleting the user account.';
     }
   }
 }

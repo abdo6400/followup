@@ -1,29 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class LanguageProvider with ChangeNotifier {
-  Locale _locale = const Locale('en');
-  Locale get locale => _locale;
+final languageProvider = StateNotifierProvider<LanguageNotifier, Locale>((ref) {
+  return LanguageNotifier();
+});
 
-  LanguageProvider() {
+class LanguageNotifier extends StateNotifier<Locale> {
+  LanguageNotifier() : super(const Locale('en')) {
     _loadLocale();
   }
+
 
   Future<void> _loadLocale() async {
     final prefs = await SharedPreferences.getInstance();
     final language = prefs.getString('language') ?? 'en';
-    _locale = Locale(language);
-    notifyListeners();
+    state = Locale(language);
   }
 
   Future<void> setLocale(String languageCode) async {
-    _locale = Locale(languageCode);
+    state = Locale(languageCode);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('language', languageCode);
-    notifyListeners();
   }
 
-  static Map<String, Map<String, String>> _localizedValues = {
+  final Map<String, Map<String, String>> localizedValues = {
     'en': {
       'appName': 'Student Follow-up',
       'login': 'Login',
@@ -118,7 +119,12 @@ class LanguageProvider with ChangeNotifier {
     },
   };
 
-  String translate(String key) {
-    return _localizedValues[_locale.languageCode]?[key] ?? key;
+  String getTranslatedValue(String key) {
+    return localizedValues[state.languageCode]?[key] ?? key;
   }
 }
+
+final translationProvider = Provider<String Function(String)>((ref) {
+  final notifier = ref.read(languageProvider.notifier);
+  return (String key) => notifier.getTranslatedValue(key);
+});

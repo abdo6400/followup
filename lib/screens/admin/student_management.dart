@@ -50,9 +50,9 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
       }
     }
   }
@@ -139,26 +139,19 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
               if (_formKey.currentState!.validate()) {
                 if (_selectedCategories.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please select at least one category'),
-                    ),
+                    const SnackBar(content: Text('Please select at least one category')),
                   );
                   return;
                 }
                 if (_selectedSheikhs.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please select at least one sheikh'),
-                    ),
+                    const SnackBar(content: Text('Please select at least one sheikh')),
                   );
                   return;
                 }
@@ -179,7 +172,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
   Future<void> _addStudent() async {
     try {
       final student = StudentModel(
-        id: '',  // Will be set by Firestore
+        id: '', // Will be set by Firestore
         name: _nameController.text,
         parentId: _selectedParentId ?? 'parent_id', // TODO: Replace with actual parent ID
         assignedCategories: _selectedCategories,
@@ -190,15 +183,15 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
       if (mounted) {
         Navigator.pop(context);
         await _loadData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Student added successfully')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Student added successfully')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding student: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error adding student: $e')));
       }
     }
   }
@@ -217,15 +210,15 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
       if (mounted) {
         Navigator.pop(context);
         await _loadData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Student updated successfully')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Student updated successfully')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating student: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating student: $e')));
       }
     }
   }
@@ -235,15 +228,15 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
       await _dbService.deleteStudent(student.id);
       if (mounted) {
         await _loadData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Student deleted successfully')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Student deleted successfully')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting student: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error deleting student: $e')));
       }
     }
   }
@@ -251,145 +244,135 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Student Management'),
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _students.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('No students found'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () => _showAddEditDialog(),
-                        child: const Text('Add Student'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('No students found'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => _showAddEditDialog(),
+                    child: const Text('Add Student'),
                   ),
-                )
-              : ListView.builder(
-                  itemCount: _students.length,
-                  itemBuilder: (context, index) {
-                    final student = _students[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: ExpansionTile(
-                        title: Text(student.name),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Categories:',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 8,
-                                  children: student.assignedCategories
-                                      .map((c) => Chip(
-                                            label: Text(
-                                              _categories
-                                                  .firstWhere(
-                                                    (cat) => cat.id == c,
-                                                    orElse: () => CategoryModel(
-                                                      id: '',
-                                                      name: 'Unknown',
-                                                      description: '',
-                                                    ),
-                                                  )
-                                                  .name,
-                                            ),
-                                          ))
-                                      .toList(),
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Sheikhs:',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 8,
-                                  children: student.assignedSheikhs
-                                      .map((s) => Chip(
-                                            label: Text(
-                                              _sheikhs
-                                                  .firstWhere(
-                                                    (sheikh) => sheikh.id == s,
-                                                    orElse: () => SheikhModel(
-                                                      id: '',
-                                                      userId: 'Unknown',
-                                                      assignedCategories: [],
-                                                      workingDays: [],
-                                                      name: 'Unknown',
-                                                    ),
-                                                  )
-                                                  .userId,
-                                            ),
-                                          ))
-                                      .toList(),
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    TextButton.icon(
-                                      onPressed: () => _showAddEditDialog(student),
-                                      icon: const Icon(Icons.edit),
-                                      label: const Text('Edit'),
-                                    ),
-                                    TextButton.icon(
-                                      onPressed: () => showDialog(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          title: const Text('Delete Student'),
-                                          content: Text(
-                                            'Are you sure you want to delete ${student.name}?',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context),
-                                              child: const Text('Cancel'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () {
-                                                Navigator.pop(context);
-                                                _deleteStudent(student);
-                                              },
-                                              style: TextButton.styleFrom(
-                                                foregroundColor: Colors.red,
+                ],
+              ),
+            )
+          : ListView.builder(
+              itemCount: _students.length,
+              itemBuilder: (context, index) {
+                final student = _students[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: ExpansionTile(
+                    title: Text(student.name),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Categories:',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              children: student.assignedCategories
+                                  .map(
+                                    (c) => Chip(
+                                      label: Text(
+                                        _categories
+                                            .firstWhere(
+                                              (cat) => cat.id == c,
+                                              orElse: () => CategoryModel(
+                                                id: '',
+                                                name: 'Unknown',
+                                                description: '',
                                               ),
-                                              child: const Text('Delete'),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      icon: const Icon(Icons.delete),
-                                      label: const Text('Delete'),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.red,
+                                            )
+                                            .name,
                                       ),
                                     ),
-                                  ],
+                                  )
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text('Sheikhs:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              children: student.assignedSheikhs
+                                  .map(
+                                    (s) => Chip(
+                                      label: Text(
+                                        _sheikhs
+                                            .firstWhere(
+                                              (sheikh) => sheikh.id == s,
+                                              orElse: () => SheikhModel(
+                                                id: '',
+                                                userId: 'Unknown',
+                                                assignedCategories: [],
+                                                workingDays: [],
+                                                name: 'Unknown',
+                                              ),
+                                            )
+                                            .userId,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: () => _showAddEditDialog(student),
+                                  icon: const Icon(Icons.edit),
+                                  label: const Text('Edit'),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () => showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Delete Student'),
+                                      content: Text(
+                                        'Are you sure you want to delete ${student.name}?',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                            _deleteStudent(student);
+                                          },
+                                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                          child: const Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.delete),
+                                  label: const Text('Delete'),
+                                  style: TextButton.styleFrom(foregroundColor: Colors.red),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    );
-                  },
-                ),
+                    ],
+                  ),
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddEditDialog(),
         child: const Icon(Icons.add),
